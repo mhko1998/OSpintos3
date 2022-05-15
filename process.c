@@ -21,152 +21,74 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+// ####### HW 3 #######
+
+void stack_esp(char *file_name, void **esp){
+
+  char **argv;
+  int argc;
+  char fn_copy[256];
+  char *token;
+  char *spare;
+  int i;
+  int len;
+
+
+  strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+  token = strtok_r(fn_copy, " ", &spare);
+  argc = 0;
+  while(token != NULL){
+    argc += 1;
+    token = strtok_r(NULL, " ", &spare);
+  }
+
+  argv = (char **)malloc(sizeof(char *) * argc);
+  strlcpy(fn_copy, file_name, strlen(file_name) + 1);
+  token = strtok_r(fn_copy, " ", &spare);
+  for(i = 0; i < argc; i++){
+    argv[i] = token;
+    token = strtok_r(NULL, " ", &spare);
+  }
+
+  for (i=argc-1; i>=0; i--){
+    len = strlen(argv[i]) + 1;
+    (*esp) -= len;
+    strlcpy(*esp, argv[i], len);
+    argv[i] = *esp;
+  }
+
+  while ((PHYS_BASE - *esp) % 4 != 0) {
+    (*esp)--;
+    **(uint8_t **)esp = 0;
+  }
+
+  *esp -= 4;
+  **(uint32_t **)esp = 0;
+  for(i = argc - 1; i >= 0; i--){
+    *esp -= 4;
+    **(uint32_t **)esp = argv[i];
+  }
+  *esp -= 4;
+  **(uint32_t **)esp = *esp + 4;
+  *esp -= 4;
+  **(uint32_t **)esp = argc;
+  *esp -= 4;
+  **(uint32_t **)esp = 0;
+  free(argv);
+}
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-
-/* void parse_filename(char *src, char *dest) {
-	int i;
-	strlcpy(dest, src, strlen(src) +1);
-	for (i=0; dest[i]!='\0' && dest[i] != ' '; i++);
-	dest[i] = '\0';
-} */ 
-
-/* void filename_parse(char *file_name, char *fn_copy) {
-	char *spare_str;
-	char copy[256];
-
-	strlcpy(copy, file_name, strlen(file_name) + 1);
-	fn_copy = strtok_r(copy, " ", &spare_str);
-
-	printf("\n\n%s\n\n", fn_copy); 
-	
-	//free(spare_str);
-} */
-
-void stack_esp(char *file_name, char **esp){ 
-  /* char **arg; 
-	int num;
-	int total_len;
-	char stored_file_name[256];
-	char *token; 
-	char *last;
-	int i;  
-	int len;
-
-	strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-	token = strtok_r(stored_file_name, " ", &last);
-	num = 0;
-	while(token != NULL){
-		num += 1;
-		token = strtok_r(NULL, " ", &last);
-	}
-	arg = (char **)malloc(sizeof(char *) * num);
-	strlcpy(stored_file_name, file_name, strlen(file_name) + 1);
-	for(i = 0, token = strtok_r(stored_file_name, " ", &last); i < num; i++, token = strtok_r(NULL, " ", &last)){
-	  len = strlen(token);
-	  arg[i] = token;
-	}
-	total_len = 0;*/
-
-
-
-
-
-	int i;
-	int len;
-  int total_len = 0;
-
-	//char fn_copy[256];
-	char *fn_copy = (char *)malloc (sizeof (file_name));
-	char *spare_str;
-	char **arg;  
-	int num = 0;
-	char *fn_ptr;
-	char *token;
-
-	// count num of args
-	strlcpy(fn_copy, file_name, strlen(file_name) + 1);
-	fn_ptr = fn_copy;
-	token = strtok_r(fn_ptr, " ", &spare_str);
-	while(token != NULL){
-		num += 1;
-		token = strtok_r(NULL, " ", &spare_str);
-	}
-
-  // store arguments to **arg
-	arg = (char **)malloc(sizeof(char *) * num); 
-	strlcpy(fn_copy, file_name, strlen(file_name) + 1);
-	fn_ptr = fn_copy;
-	token = strtok_r(fn_ptr, " ", &spare_str);
-	arg[0] = token;
-	i = 1;
-	while(i != num) {
-	  token = strtok_r(NULL, " ", &spare_str);
-		arg[i] = token;
-		i++;
-	}
-	free(fn_copy);	
-
-
-
-	// arg[0~num-1][i] store
-	/* for(i=num-1; i>=0; i--){
-	  len = strlen(arg[i]);
-	  *esp -= len + 1;
-	  total_len += len + 1;
-	  strlcpy(*esp, arg[i], len + 1);
-	  arg[i] = *esp; 
-	} */
-	for (i=num-1; i>=0; i--){
-		len = strlen(arg[i]) + 1;
-		(*esp) -= len;
-		strlcpy(*esp, arg[i], len);
-		arg[i] = *esp; 
-	}
-
-	// word-align
-	//*esp -= total_len % 4 != 0 ? 4 - (total_len % 4) : 0; 
-	while (((char *)PHYS_BASE - *esp) % 4 != 0) {
-		(*esp)--;
-		**(uint8_t **)esp = 0;
-	}
-
-	// arg[num] is NULL
-	(*esp) -= 4;
-	**(uint32_t **)esp = 0;
-
-	// pointer to arg[0 ~ num-1]
-	for(i=num-1; i>=0; i--){
-	  (*esp) -= 4;
-	  **(uint32_t **)esp = (uint32_t)arg[i];
-	}
-
-	// arg = start pinter from arg[0]
-	(*esp) -= 4;
-	**(uint32_t **)esp = *esp + 4;
-
-	// num
-	(*esp) -= 4;
-	**(uint32_t **)esp = num;
-
-	// return address
-	(*esp) -= 4;
-	**(uint32_t **)esp = 0;
-
-	free(arg);
-}
-																									 
-
-
-
-
 tid_t
 process_execute (const char *file_name) 
 {
   char *fn_copy;
   tid_t tid;
+  // ####### HW 3 #######
+  struct list_elem* e;
+  struct thread* t;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -175,18 +97,16 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  // ####### HW 3 #######
+  
+  char *token;
+  char *spare_str;
+  char copy[256];
 
+  strlcpy (copy, file_name, strlen(file_name) + 1);
+  token = strtok_r(copy, " ", &spare_str);
 
-	char *token;
-	char *spare_str;
-	char copy[256];
-
-	strlcpy (copy, file_name, strlen(file_name) + 1);
-	token = strtok_r(copy, " ", &spare_str);
-
-
-
-
+  if(filesys_open(token) == NULL) return -1;
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (token, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -202,33 +122,24 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  // ####### HW 3 #######
+  char *token;
+  char *spare_str;
+  char copy[256];
 
-
-
-	//char cmd_name[256];
-	//parse_filename(file_name, cmd_name);
-	//filename_parse(file_name, cmd_name);
-	char *token;
-	char *spare_str;
-	char fn_copy[256];
-
-	strlcpy (fn_copy, file_name, strlen(file_name) + 1);
-	token = strtok_r(fn_copy, " ", &spare_str);
-	//printf("\n\n%s\n", token);
-
+  strlcpy (copy, file_name, strlen(file_name) + 1);
+  token = strtok_r(copy, " ", &spare_str);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  //success = load (cmd_name, &if_.eip, &if_.esp);
   success = load (token, &if_.eip, &if_.esp);
-
-		if (success) {
-			stack_esp(file_name, &if_.esp);
-		}
-
+// ####### HW 3 #######
+  if (success){
+    stack_esp(file_name, &if_.esp);
+  }
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -254,10 +165,23 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-	int i;
-	for (i=0; i<1000000000; i++);
+  // ####### HW 3 #######
+  struct list_elem* e;
+  struct thread* t = NULL;
+  int exit_status;
+
+  for(e = list_begin(&(thread_current()->child));e != list_end(&(thread_current()->child)); e = list_next(e)){
+    t = list_entry(e, struct thread, child_elem);
+    if(child_tid == t->tid){
+      sema_down(&(t->child_lock));
+      exit_status = t->exit_status;
+      list_remove(&(t->child_elem));
+      sema_up(&(t->mem_lock));
+      return exit_status;
+    }
+  }
   return -1;
 }
 
@@ -284,6 +208,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  sema_up(&(cur->child_lock));
+  sema_down(&(cur->mem_lock));
 }
 
 /* Sets up the CPU for running user code in the current
